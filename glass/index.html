@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#120a06">
+<title>ARガラス工房</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;color:#fff;
+    font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+    -webkit-user-select:none;user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent;
+    background:radial-gradient(ellipse at 50% 30%,#3a2416 0%,#1a0f09 55%,#0a0604 100%);}
+  body.cam-on{background:#000}
+  #cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;display:none}
+  body.cam-on #cam{display:block}
+  #gl{position:fixed;inset:0;z-index:1;display:block}
+  .ui{position:fixed;z-index:3;display:none}
+  #top{left:12px;right:12px;top:calc(env(safe-area-inset-top) + 10px);background:rgba(20,10,4,.66);
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border-radius:14px;padding:10px 14px;pointer-events:none}
+  #top .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  #stepLabel{font-size:13px;font-weight:700;color:#ffb35c}
+  #temp{font-size:20px;font-weight:900;font-variant-numeric:tabular-nums}
+  #instr{font-size:16px;font-weight:800;margin-top:2px;line-height:1.4}
+  #tip{font-size:12px;line-height:1.55;opacity:.85;margin-top:6px;border-top:1px solid rgba(255,255,255,.15);padding-top:6px}
+  #gauges{left:12px;right:12px;top:auto;bottom:calc(env(safe-area-inset-bottom) + 132px);pointer-events:none;
+    background:rgba(20,10,4,.55);border-radius:12px;padding:8px 12px;font-size:12px}
+  .g{display:flex;align-items:center;gap:8px;margin:3px 0}
+  .g span{width:54px;flex:none}
+  .bar{position:relative;flex:1;height:10px;border-radius:6px;background:rgba(255,255,255,.15);overflow:hidden}
+  .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:6px}
+  .zone{position:absolute;top:0;bottom:0;background:rgba(90,255,140,.35);border-left:2px solid #5aff8c;border-right:2px solid #5aff8c}
+  #pad{left:12px;bottom:calc(env(safe-area-inset-bottom) + 16px);width:46%;height:100px;border-radius:18px;
+    border:2px dashed rgba(255,200,140,.6);background:rgba(20,10,4,.45);touch-action:none;
+    align-items:center;justify-content:center;flex-direction:column;font-size:13px;font-weight:700;text-align:center}
+  #pad b{font-size:22px;letter-spacing:4px}
+  #act{right:12px;bottom:calc(env(safe-area-inset-bottom) + 16px);width:112px;height:112px;border-radius:50%;border:0;
+    font:inherit;font-size:18px;font-weight:900;color:#2a1200;background:radial-gradient(circle at 40% 35%,#ffd59a,#ff8a2a);
+    box-shadow:0 6px 0 #a34a00,0 0 24px rgba(255,140,40,.5);touch-action:none}
+  #act.on{transform:translateY(4px);box-shadow:0 2px 0 #a34a00,0 0 40px rgba(255,160,60,.9)}
+  #choices{left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 216px);justify-content:center;gap:10px;flex-wrap:wrap}
+  #choices button,.btn{font:inherit;font-size:15px;font-weight:800;border:0;border-radius:999px;padding:12px 18px;
+    color:#2a1200;background:#ffc06b;box-shadow:0 4px 0 #a35a00}
+  #choices button.alt{background:#8fd3ff;color:#06202e;box-shadow:0 4px 0 #2b7fae}
+  #toast{left:50%;top:46%;transform:translate(-50%,-50%);z-index:4;font-size:20px;font-weight:900;text-align:center;
+    background:rgba(0,0,0,.6);padding:12px 18px;border-radius:14px;pointer-events:none;max-width:80%}
+  #arrow{position:fixed;z-index:3;width:0;height:0;pointer-events:none;display:none}
+  #arrow::before{content:"";position:absolute;left:-14px;top:-16px;border-left:30px solid #ffa040;
+    border-top:16px solid transparent;border-bottom:16px solid transparent;filter:drop-shadow(0 0 6px rgba(255,160,64,.9))}
+  #reticle{left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border:2px solid rgba(255,190,120,.6);border-radius:50%;pointer-events:none}
+  .overlay{position:fixed;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:24px;box-sizing:border-box;background:rgba(14,7,3,.88);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  .overlay h1{font-size:30px;margin:0 0 8px}
+  .overlay p{margin:6px 0;line-height:1.6;opacity:.92;max-width:340px}
+  .steps{margin:14px 0 22px;text-align:left;font-size:15px;line-height:1.9;background:rgba(255,255,255,.07);padding:12px 18px;border-radius:14px}
+  button.big{font:inherit;font-size:20px;font-weight:800;color:#2a1200;background:#ffb35c;border:0;border-radius:999px;
+    padding:14px 44px;box-shadow:0 6px 0 #a35a00}
+  .note{font-size:12px;opacity:.7;margin-top:16px}
+  #result{left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 16px);background:rgba(20,10,4,.8);
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border-radius:16px;padding:14px 16px;flex-direction:column;gap:6px}
+  #result h2{margin:0;font-size:22px}
+  #result p{margin:0;font-size:14px;line-height:1.6}
+</style>
+</head>
+<body>
+<video id="cam" playsinline muted autoplay></video>
+<canvas id="gl"></canvas>
+
+<div id="top" class="ui">
+  <div class="row"><div id="stepLabel"></div><div id="temp"></div></div>
+  <div id="instr"></div>
+  <div id="tip"></div>
+</div>
+<div id="reticle" class="ui"></div>
+<div id="gauges" class="ui">
+  <div class="g"><span>ふくらみ</span><div class="bar"><div class="zone" style="left:63.6%;width:22.7%"></div><i id="gB" style="background:#ffb35c"></i></div></div>
+  <div class="g"><span>回転</span><div class="bar"><i id="gR" style="background:#8fd3ff"></i></div></div>
+  <div class="g"><span>たれ</span><div class="bar"><i id="gS" style="background:#ff5a5a"></i></div></div>
+</div>
+<div id="pad" class="ui"><b>⟵ ⟶</b>ここを左右にこすって<br>竿を回す</div>
+<button id="act" class="ui">吹く</button>
+<div id="choices" class="ui"></div>
+<div id="toast" class="ui"></div>
+<div id="arrow"></div>
+<div id="result" class="ui"><h2 id="resTitle"></h2><p id="resText"></p><div style="margin-top:6px"><button class="btn" id="again">もう一度つくる</button></div></div>
+
+<div id="start" class="overlay">
+  <h1>🔥 ARガラス工房</h1>
+  <p>目の前に現れる炉で、吹きガラスのコップづくりを体験しよう。</p>
+  <div class="steps">
+    <div>① 巻き取り … 炉から溶けたガラスを取る</div>
+    <div>② 吹く・回す … ふくらませて形をつくる</div>
+    <div>③ 成形 … 口を広げてコップの形に</div>
+    <div>④ 徐冷 … ゆっくり冷まして完成</div>
+  </div>
+  <button class="big" id="startBtn">体験スタート</button>
+  <p class="note">カメラと動きセンサーの許可を求められたら「許可」してください。<br>PCでは画面ドラッグで見回せます。</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const show = (id, d) => { $(id).style.display = d || 'block'; };
+  const hide = id => { $(id).style.display = 'none'; };
+  const video = $('cam'), canvas = $('gl');
+
+  // ---------- three.js ----------
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.02, 100);
+  camera.rotation.order = 'YXZ';
+  scene.add(camera);
+  scene.add(new THREE.HemisphereLight(0xfff1e0, 0x2a1a10, 0.8));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.7); sun.position.set(1, 3, 2); scene.add(sun);
+  const floor = new THREE.GridHelper(30, 30, 0xffb070, 0xffb070);
+  floor.position.y = -1.3; floor.material.transparent = true; floor.material.opacity = 0.18; scene.add(floor);
+
+  function resize() {
+    renderer.setSize(innerWidth, innerHeight, false);
+    canvas.style.width = innerWidth + 'px'; canvas.style.height = innerHeight + 'px';
+    camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  }
+  addEventListener('resize', resize); resize();
+
+  // ---------- 端末の向き ----------
+  let ori = null, usingSensor = false;
+  addEventListener('deviceorientation', e => { if (e.alpha == null) return; ori = e; usingSensor = true; });
+  const zee = new THREE.Vector3(0, 0, 1), euler = new THREE.Euler(), q0 = new THREE.Quaternion();
+  const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+  const rad = THREE.MathUtils.degToRad;
+  const screenAngle = () => (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+  function applySensor() {
+    euler.set(rad(ori.beta), rad(ori.alpha), -rad(ori.gamma), 'YXZ');
+    camera.quaternion.setFromEuler(euler);
+    camera.quaternion.multiply(q1);
+    camera.quaternion.multiply(q0.setFromAxisAngle(zee, -rad(screenAngle())));
+  }
+  // PC用ドラッグ
+  let yaw = 0, pitch = -0.15, drag = null;
+  canvas.addEventListener('pointerdown', e => { if (!usingSensor) drag = { x: e.clientX, y: e.clientY }; });
+  addEventListener('pointermove', e => {
+    if (!drag) return;
+    yaw += (e.clientX - drag.x) * 0.005; pitch = THREE.MathUtils.clamp(pitch + (e.clientY - drag.y) * 0.005, -1.3, 1.3);
+    drag.x = e.clientX; drag.y = e.clientY;
+  });
+  addEventListener('pointerup', () => { drag = null; });
+
+  // ---------- カメラ映像 ----------
+  async function startCamera() {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      video.srcObject = s; await video.play();
+      document.body.classList.add('cam-on'); floor.visible = false; return true;
+    } catch (e) { return false; }
+  }
+
+  // ---------- 効果音 ----------
+  let actx = null, roar = null;
+  function beep(freq, dur, type, to) {
+    if (!actx) return;
+    const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+    o.type = type || 'triangle';
+    o.frequency.setValueAtTime(freq, t); o.frequency.exponentialRampToValueAtTime(freq * (to || 1), t + dur);
+    g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
+  }
+  function setupRoar() {                 // 炉のゴーッという音／吹く音（ノイズ）
+    const len = actx.sampleRate * 2, buf = actx.createBuffer(1, len, actx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = actx.createBufferSource(); src.buffer = buf; src.loop = true;
+    const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 400;
+    const g = actx.createGain(); g.gain.value = 0;
+    src.connect(f).connect(g).connect(actx.destination); src.start();
+    roar = { g, f };
+  }
+  function setRoar(vol, freq) {
+    if (!roar) return;
+    roar.g.gain.setTargetAtTime(vol, actx.currentTime, 0.08);
+    roar.f.frequency.setTargetAtTime(freq, actx.currentTime, 0.08);
+  }
+
+  // ---------- 温度 → 色 ----------
+  const STOPS = [[25, 0x000000], [500, 0x2a0500], [700, 0x8a1800], [900, 0xff4d00], [1100, 0xffa040], [1300, 0xffe6b0]];
+  const _c1 = new THREE.Color(), _c2 = new THREE.Color();
+  function heatColor(t, out) {
+    out = out || new THREE.Color();
+    if (t <= STOPS[0][0]) return out.set(STOPS[0][1]);
+    for (let i = 1; i < STOPS.length; i++) {
+      if (t <= STOPS[i][0]) {
+        const k = (t - STOPS[i - 1][0]) / (STOPS[i][0] - STOPS[i - 1][0]);
+        return out.copy(_c1.set(STOPS[i - 1][1])).lerp(_c2.set(STOPS[i][1]), k);
+      }
+    }
+    return out.set(STOPS[STOPS.length - 1][1]);
+  }
+
+  // ---------- 文字ラベル ----------
+  function makeLabel(text) {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+    const x = c.getContext('2d');
+    x.fillStyle = 'rgba(0,0,0,.55)'; x.beginPath(); x.roundRect ? x.roundRect(8, 16, 496, 96, 40) : x.rect(8, 16, 496, 96); x.fill();
+    x.fillStyle = '#ffd7a0'; x.font = 'bold 54px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(text, 256, 66);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+    s.scale.set(0.6, 0.15, 1); return s;
+  }
+
+  // ---------- 炉 ----------
+  const furnace = new THREE.Group();
+  const MOUTH = new THREE.Vector3(0, 0.12, 0.46);
+  {
+    const brick = new THREE.MeshStandardMaterial({ color: 0x7a3b2a, roughness: 0.95 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.2, 0.9), brick); furnace.add(body);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), brick);
+    dome.scale.set(1, 0.5, 0.82); dome.position.y = 0.6; furnace.add(dome);
+    const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.6, 16), new THREE.MeshStandardMaterial({ color: 0x3d3d3d, metalness: .6, roughness: .5 }));
+    chimney.position.set(0.25, 1.1, -0.1); furnace.add(chimney);
+    const frame = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.04, 10, 32), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: .7, roughness: .4 }));
+    frame.position.copy(MOUTH); furnace.add(frame);
+    const glow = new THREE.Mesh(new THREE.CircleGeometry(0.21, 32), new THREE.MeshBasicMaterial({ color: 0xff8a2a }));
+    glow.position.copy(MOUTH).z -= 0.005; furnace.add(glow);
+    const core = new THREE.Mesh(new THREE.CircleGeometry(0.12, 32), new THREE.MeshBasicMaterial({ color: 0xffe0a0 }));
+    core.position.copy(MOUTH); furnace.add(core);
+    const light = new THREE.PointLight(0xff8a30, 1.6, 4); light.position.set(0, 0.12, 0.8); furnace.add(light);
+    furnace.userData = { light, glow };
+    const label = makeLabel('溶解炉 約1300℃'); label.position.set(0, 1.05, 0.3); furnace.add(label);
+  }
+  furnace.visible = false; scene.add(furnace);
+  const mouthWorld = new THREE.Vector3();
+
+  // ---------- 吹き竿（カメラに固定） ----------
+  const PIPE_A = new THREE.Vector3(0.2, -0.3, -0.2), PIPE_B = new THREE.Vector3(0.02, -0.08, -0.5);
+  const pipeDir = PIPE_B.clone().sub(PIPE_A).normalize();
+  const pipeQ = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), pipeDir);
+  const pipe = new THREE.Group();
+  {
+    const len = PIPE_A.distanceTo(PIPE_B);
+    const steel = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, metalness: 0.8, roughness: 0.3 });
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, len, 12), steel);
+    tube.position.copy(PIPE_A).add(PIPE_B).multiplyScalar(0.5); tube.quaternion.copy(pipeQ); pipe.add(tube);
+    // 回転が見えるように、竿に色つきのグリップ
+    const grip = new THREE.Group();
+    grip.position.copy(PIPE_A).lerp(PIPE_B, 0.18); grip.quaternion.copy(pipeQ);
+    const wood = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.09, 12), new THREE.MeshStandardMaterial({ color: 0x8a5a32, roughness: .8 }));
+    const mark = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.092, 0.024), new THREE.MeshStandardMaterial({ color: 0xffd060 }));
+    mark.position.z = 0.009;
+    grip.add(wood, mark); pipe.add(grip);
+    pipe.userData.grip = grip;
+  }
+  pipe.visible = false; camera.add(pipe);
+
+  // 竿の先のガラス玉
+  const gobGroup = new THREE.Group(); gobGroup.position.copy(PIPE_B); gobGroup.quaternion.copy(pipeQ); pipe.add(gobGroup);
+  const gobMat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const gobMesh = new THREE.Mesh(new THREE.BufferGeometry(), gobMat); gobGroup.add(gobMesh);
+  const gobLight = new THREE.PointLight(0xff8a30, 0, 1.2); gobGroup.add(gobLight);
+  const glowTex = (() => {             // ぼんやり光るハロー
+    const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+    const gr = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = gr; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
+  })();
+  const gobGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+  gobGroup.add(gobGlow);
+  const sagLocal = new THREE.Vector3(), _p = new THREE.Vector3(), _n = new THREE.Vector3();
+  const tmpC = new THREE.Color();
+
+  function buildGob(R, sag, angle, temp) {
+    const N = 22, L = 2.1 * R, neck = 0.009, pts = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      let r = Math.sqrt(Math.max(0, 1 - (2 * t - 1) ** 2)) * R;
+      r = Math.max(r, neck * (1 - t * 3), 0.0001);
+      pts.push(new THREE.Vector2(r, t * L));
+    }
+    const geo = new THREE.LatheGeometry(pts, 32);
+    // 重力の向き（カメラの下方向）を玉のローカル座標に
+    sagLocal.set(0, -1, 0).applyQuaternion(pipeQ.clone().invert()); sagLocal.y = 0; sagLocal.normalize();
+    const pos = geo.attributes.position, cols = new Float32Array(pos.count * 3), phis = new Float32Array(pos.count);
+    heatColor(temp, tmpC);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), along = y / L;
+      phis[i] = Math.atan2(z, x);
+      const d = sag * L * 0.7 * along * along;
+      pos.setXYZ(i, x + sagLocal.x * d, y, z + sagLocal.z * d);
+    }
+    geo.computeVertexNormals();
+    const nrm = geo.attributes.normal;
+    for (let i = 0; i < pos.count; i++) {
+      // 正面ほど明るく、ふちほど暗く（立体に見せる）
+      _p.set(pos.getX(i), pos.getY(i), pos.getZ(i)).applyQuaternion(pipeQ).add(PIPE_B).negate().normalize();
+      _n.set(nrm.getX(i), nrm.getY(i), nrm.getZ(i)).applyQuaternion(pipeQ);
+      const facing = Math.max(0, _n.dot(_p));
+      const k = (0.85 + 0.15 * Math.sin(5 * phis[i] + angle)) * (0.35 + 0.75 * Math.pow(facing, 0.8));
+      cols[i * 3] = Math.min(1, tmpC.r * k); cols[i * 3 + 1] = Math.min(1, tmpC.g * k); cols[i * 3 + 2] = Math.min(1, tmpC.b * k);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    gobMesh.geometry.dispose(); gobMesh.geometry = geo;
+    gobLight.color.copy(tmpC); gobLight.intensity = Math.max(0, (temp - 500) / 700) * 1.2;
+    gobLight.position.set(0, R, 0);
+    gobGlow.position.set(0, R, 0); gobGlow.scale.setScalar(R * 5);
+    gobGlow.material.color.copy(tmpC); gobGlow.material.opacity = Math.max(0, (temp - 600) / 600) * 0.8;
+  }
+
+  // ---------- 作品（コップ）と作業台 ----------
+  const bench = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.05, 32), new THREE.MeshStandardMaterial({ color: 0x4a4f57, metalness: .7, roughness: .35 }));
+  bench.visible = false; scene.add(bench);
+  const cupMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.08, metalness: 0.1, transparent: true, side: THREE.DoubleSide });
+  const cup = new THREE.Group(); const cupMesh = new THREE.Mesh(new THREE.BufferGeometry(), cupMat); cup.add(cupMesh);
+  const cupLight = new THREE.PointLight(0xff8a30, 0, 1.2); cupLight.position.y = 0.08; cup.add(cupLight);
+  cup.visible = false; scene.add(cup);
+  const cracks = new THREE.Group(); cup.add(cracks);
+
+  const NP = 14;
+  function gobProfile(R) {           // 球（上が竿の付け根）
+    const out = [], inn = [], Ri = R * 0.9;
+    for (let i = 0; i < NP; i++) {
+      const a = Math.PI * (1 - (i / (NP - 1)) * 0.9);
+      out.push(new THREE.Vector2(Math.max(0.0005, R * Math.sin(a)), R + R * Math.cos(a)));
+    }
+    for (let i = NP - 1; i >= 0; i--) {
+      const a = Math.PI * (1 - (i / (NP - 1)) * 0.9);
+      inn.push(new THREE.Vector2(Math.max(0.0005, Ri * Math.sin(a)), R + Ri * Math.cos(a)));
+    }
+    return out.concat(inn);
+  }
+  function cupProfile(s) {           // コップ（口が上）
+    const h = 0.12 * s, rb = 0.03 * s, rt = 0.04 * s, th = 0.003;
+    const r = u => rb + (rt - rb) * u + 0.006 * s * Math.sin(Math.PI * u);
+    const out = [new THREE.Vector2(0.0005, 0)], inn = [];
+    for (let i = 0; i < NP - 1; i++) { const u = i / (NP - 2); out.push(new THREE.Vector2(r(u), h * u)); }
+    for (let i = NP - 2; i >= 0; i--) { const u = i / (NP - 2); inn.push(new THREE.Vector2(r(u) - th, th * 2 + (h - th * 2) * u)); }
+    inn.push(new THREE.Vector2(0.0005, th * 2));
+    return out.concat(inn);
+  }
+  function buildCup(m) {
+    const a = gobProfile(0.05), b = cupProfile(cupScale);
+    const pts = a.map((p, i) => p.clone().lerp(b[i], m));
+    cupMesh.geometry.dispose(); cupMesh.geometry = new THREE.LatheGeometry(pts, 48);
+    cupMesh.geometry.computeVertexNormals();
+  }
+  function paintCup(temp) {
+    const hot = THREE.MathUtils.clamp((temp - 450) / 500, 0, 1);
+    cupMat.emissive.copy(heatColor(temp, tmpC)); cupMat.emissiveIntensity = 1;
+    cupMat.color.set(0xd6f1ff).lerp(new THREE.Color(0x553320), hot);
+    cupMat.opacity = 0.42 + 0.58 * hot;
+    cupMat.depthWrite = hot > 0.5;
+    cupLight.color.copy(tmpC); cupLight.intensity = hot * 1.4;
+  }
+  function addCracks() {
+    const mat = new THREE.LineBasicMaterial({ color: 0xffffff });
+    const h = 0.12 * cupScale, r = 0.04 * cupScale;
+    for (let k = 0; k < 5; k++) {
+      let a = Math.random() * 6.28, y = Math.random() * h * 0.6 + h * 0.2; const pts = [];
+      for (let j = 0; j < 7; j++) { pts.push(new THREE.Vector3(Math.cos(a) * r * 1.02, y, Math.sin(a) * r * 1.02)); a += (Math.random() - .5) * 0.5; y += (Math.random() - .5) * 0.03; }
+      cracks.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
+    }
+  }
+
+  // ---------- UI 操作 ----------
+  let holding = false;
+  const act = $('act');
+  act.addEventListener('pointerdown', e => { e.preventDefault(); holding = true; act.classList.add('on'); try { act.setPointerCapture(e.pointerId); } catch (_) {} });
+  const release = () => { holding = false; act.classList.remove('on'); };
+  act.addEventListener('pointerup', release); act.addEventListener('pointercancel', release);
+
+  let rotVel = 0, pipeAngle = 0, padLast = null;
+  const pad = $('pad');
+  pad.addEventListener('pointerdown', e => { padLast = { x: e.clientX, t: performance.now() }; try { pad.setPointerCapture(e.pointerId); } catch (_) {} });
+  pad.addEventListener('pointermove', e => {
+    if (!padLast) return;
+    const now = performance.now(), dtm = Math.max(8, now - padLast.t);
+    const v = (e.clientX - padLast.x) / dtm * 1000;       // px/秒
+    rotVel = rotVel * 0.5 + v * 0.012 * 0.5;
+    padLast = { x: e.clientX, t: now };
+  });
+  const padEnd = () => { padLast = null; };
+  pad.addEventListener('pointerup', padEnd); pad.addEventListener('pointercancel', padEnd);
+
+  let toastT = 0;
+  function toast(msg, sec) { $('toast').innerHTML = msg; show('toast'); toastT = sec || 2; }
+
+  function choices(list) {
+    const c = $('choices'); c.innerHTML = '';
+    if (!list) { hide('choices'); return; }
+    list.forEach(([label, fn, alt]) => {
+      const b = document.createElement('button'); b.textContent = label; if (alt) b.className = 'alt';
+      b.onclick = fn; c.appendChild(b);
+    });
+    show('choices', 'flex');
+  }
+
+  // ---------- 工程 ----------
+  const STEPS = {
+    1: { label: 'STEP 1/4　巻き取り', btn: '巻き<br>取る',
+      tip: '炉の中では、ケイ砂・ソーダ灰・石灰などの原料が約1300℃で溶けて、水あめのようになっています。吹き竿の先を入れ、回しながら巻き取ります。' },
+    2: { label: 'STEP 2/4　吹く・回す', btn: '吹く',
+      tip: '竿に息を吹き込んでふくらませます。回し続けないと重力で垂れてしまいます。冷えて固くなったら炉にかざして温め直します（焼き戻し）。' },
+    3: { label: 'STEP 3/4　成形', btn: '形を<br>整える',
+      tip: '竿から切り離し、ジャックと呼ばれるハサミのような道具で口を広げ、コップの形に整えます。' },
+    4: { label: 'STEP 4/4　徐冷', btn: '',
+      tip: '急に冷やすと表面と内部の温度差で「ひずみ」が残り、割れの原因に。実際は徐冷炉で何時間もかけてゆっくり冷まします。' }
+  };
+  let step = 0, g = 0, b = 0, sag = 0, sagMax = 0, temp = 1200, morph = 0, cupScale = 1, cooling = null, done = false;
+
+  function setStep(n) {
+    step = n; const s = STEPS[n];
+    $('stepLabel').textContent = s.label; $('tip').textContent = s.tip;
+    act.innerHTML = s.btn; s.btn ? show('act') : hide('act');
+    n === 2 ? (show('pad', 'flex'), show('gauges')) : (hide('pad'), hide('gauges'));
+    choices(null); release();
+    if (n === 4) {
+      choices([['徐冷炉でゆっくり冷ます', () => startCooling(false)], ['水で一気に冷やす', () => startCooling(true), true]]);
+    }
+  }
+
+  function placeInFront(obj, dist, y) {
+    const f = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion); f.y = 0;
+    if (f.lengthSq() < 1e-4) f.set(0, 0, -1);
+    f.normalize();
+    obj.position.set(f.x * dist, y, f.z * dist);
+    return f;
+  }
+
+  function begin() {
+    g = b = sag = sagMax = morph = 0; temp = 1200; rotVel = 0; cooling = null; done = false;
+    hide('result'); cup.visible = bench.visible = false;
+    while (cracks.children.length) cracks.remove(cracks.children[0]);
+    pipe.visible = true; gobMesh.visible = true;
+    setStep(1);
+  }
+
+  function fail(msg) {
+    beep(160, 0.4, 'sawtooth', 0.5); if (navigator.vibrate) navigator.vibrate(150);
+    toast(msg + '<br><small>もう一度、巻き取りから</small>', 2.4);
+    g = b = sag = sagMax = 0; temp = 1200; rotVel = 0;
+    setStep(1);
+  }
+
+  function toShaping() {
+    cupScale = 0.8 + 0.5 * THREE.MathUtils.clamp((b - 0.7) / 0.3, 0, 1);
+    gobMesh.visible = false; pipe.visible = false;
+    const f = placeInFront(bench, 0.6, -0.36);
+    cup.position.set(bench.position.x, -0.335, bench.position.z);
+    cup.rotation.set(0, 0, 0);
+    cup.rotateOnWorldAxis(new THREE.Vector3(-f.z, 0, f.x), sagMax * 0.35);   // 垂れ具合でちょっと傾く
+    bench.visible = cup.visible = true;
+    temp = 850; morph = 0; buildCup(0); paintCup(temp);
+    beep(600, 0.15, 'triangle', 1.5);
+    setStep(3);
+  }
+
+  function startCooling(quench) {
+    choices(null);
+    cooling = { quench, t: 0 };
+    if (quench) { setRoar(0.35, 3000); setTimeout(() => setRoar(0, 400), 600); }
+  }
+
+  function finish(cracked) {
+    done = true; step = 5;
+    hide('act'); hide('choices');
+    let title, text;
+    if (cracked) {
+      title = 'ピシッ…割れてしまった！';
+      text = '急に冷やしたので、表面と内部の温度差による「ひずみ」で割れました。だから実際の工場では徐冷炉でゆっくり冷ますんです。';
+      beep(2400, 0.12, 'square', 0.4); setTimeout(() => beep(1800, 0.15, 'square', 0.3), 120);
+    } else {
+      const shape = sagMax < 0.3 ? 'まっすぐ綺麗な形' : sagMax < 0.6 ? '少しゆがんだ味のある形' : 'かなり傾いた個性派';
+      const size = b < 0.8 ? '小ぶりなぐい呑みサイズ' : b < 0.95 ? 'ちょうど良いグラスサイズ' : '大きめで薄手のグラス';
+      title = '完成！ ガラスのコップ';
+      text = `${shape}・${size}になりました。まわりから眺めてみよう。`;
+      beep(660, 0.2, 'triangle', 1); setTimeout(() => beep(990, 0.35, 'triangle', 1), 160);
+    }
+    $('resTitle').textContent = title; $('resText').textContent = text;
+    $('stepLabel').textContent = cracked ? '失敗…' : '完成'; $('instr').textContent = '';
+    show('result', 'flex');
+  }
+
+  $('again').onclick = () => { placeFurnace(); begin(); };
+
+  function placeFurnace() {
+    const f = placeInFront(furnace, 2.2, -0.75);
+    furnace.lookAt(0, furnace.position.y, 0);
+    furnace.visible = true;
+  }
+
+  $('startBtn').onclick = async () => {
+    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); if (!roar) setupRoar(); } catch (e) {}
+    if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      try { await DeviceOrientationEvent.requestPermission(); } catch (e) {}
+    }
+    await startCamera();
+    hide('start'); show('top'); show('reticle');
+    setTimeout(() => {           // センサーの初期値が入ってから炉を置く
+      if (usingSensor && ori) applySensor();
+      placeFurnace(); begin();
+    }, 300);
+  };
+
+  // ---------- 矢印 ----------
+  const arrow = $('arrow');
+  function pointTo(world) {
+    if (!world) { arrow.style.display = 'none'; return; }
+    const v = world.clone().applyMatrix4(camera.matrixWorldInverse);
+    const p = world.clone().project(camera);
+    if (v.z < 0 && Math.abs(p.x) < 0.9 && Math.abs(p.y) < 0.9) { arrow.style.display = 'none'; return; }
+    let dx = v.x, dy = -v.y; if (Math.hypot(dx, dy) < 1e-3) dy = 1;
+    const ang = Math.atan2(dy, dx), c = Math.cos(ang), s = Math.sin(ang);
+    const rx = innerWidth / 2 - 36, ry = innerHeight / 2 - 120;
+    const t = Math.min(rx / Math.abs(c || 1e-6), ry / Math.abs(s || 1e-6));
+    arrow.style.display = 'block';
+    arrow.style.left = (innerWidth / 2 + c * t) + 'px'; arrow.style.top = (innerHeight / 2 + s * t) + 'px';
+    arrow.style.transform = `rotate(${ang}rad)`;
+  }
+
+  // ---------- メインループ ----------
+  const clock = new THREE.Clock();
+  const fwd = new THREE.Vector3(), toM = new THREE.Vector3();
+  function loop() {
+    requestAnimationFrame(loop);
+    const dt = Math.min(clock.getDelta(), 0.05), now = clock.elapsedTime;
+
+    if (usingSensor && ori) applySensor(); else camera.rotation.set(pitch, yaw, 0, 'YXZ');
+    camera.updateMatrixWorld();
+    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+
+    if (furnace.visible) {
+      furnace.userData.light.intensity = 1.4 + Math.sin(now * 13) * 0.15 + Math.sin(now * 7.3) * 0.15;
+      mouthWorld.copy(MOUTH); furnace.localToWorld(mouthWorld);
+    }
+    camera.getWorldDirection(fwd);
+    toM.copy(mouthWorld).sub(camera.position).normalize();
+    const aimed = furnace.visible && fwd.angleTo(toM) < 0.26;
+
+    rotVel *= Math.exp(-1.6 * dt);
+    pipeAngle += rotVel * dt;
+    pipe.userData.grip.rotation.y = pipeAngle;
+    let roarVol = aimed ? 0.12 : 0.03, roarF = 350;
+
+    if (step === 1) {
+      $('instr').textContent = aimed ? (holding ? '巻き取り中…そのまま！' : 'ボタンを長押しして巻き取ろう')
+                                     : '炉の口（光っている穴）に竿を向けよう';
+      if (holding && aimed) { g = Math.min(1, g + 0.4 * dt); pipeAngle += dt * 4; }
+      temp = 1200;
+      $('temp').textContent = g > 0 ? `${Math.round(temp)}℃` : '';
+      buildGob(0.005 + 0.023 * g, 0, pipeAngle, temp);
+      gobGlow.visible = g > 0;
+      gobMesh.visible = g > 0;
+      if (g >= 1) { beep(500, 0.2, 'triangle', 1.6); toast('巻き取り完了！', 1.2); setStep(2); }
+      pointTo(aimed ? null : mouthWorld);
+    } else if (step === 2) {
+      temp -= 20 * dt;
+      if (aimed) temp = Math.min(1150, temp + 160 * dt);
+      const spinning = Math.abs(rotVel) > 2;
+      sag = spinning ? Math.max(0, sag - 0.22 * dt) : Math.min(1, sag + 0.1 * dt * (temp / 1000));
+      sagMax = Math.max(sagMax, sag);
+      const soft = temp >= 750;
+      if (holding && soft) { b += 0.13 * dt; roarVol = 0.22; roarF = 900; }
+      if (aimed && temp < 1140) $('instr').textContent = '炉で温め直し中…';
+      else if (holding && !soft) $('instr').textContent = '冷えて固い！炉に向けて温め直そう';
+      else if (!spinning) $('instr').textContent = '左下をこすって竿を回して！垂れてくるよ';
+      else if (b >= 0.7 && b <= 0.95) $('instr').textContent = 'いい大きさ！「成形へ」で次へ進もう';
+      else $('instr').textContent = '回しながら「吹く」を長押ししてふくらませよう';
+      $('temp').textContent = `${Math.round(temp)}℃`;
+      $('temp').style.color = soft ? '#fff' : '#8fd3ff';
+      $('gB').style.width = Math.min(100, b / 1.1 * 100) + '%';
+      $('gR').style.width = Math.min(100, Math.abs(rotVel) / 6 * 100) + '%';
+      $('gS').style.width = sag * 100 + '%';
+      buildGob(0.028 * (1 + 1.5 * b), sag, pipeAngle, temp);
+      if (b >= 0.7 && !$('choices').children.length) choices([['成形へ ▶', toShaping]]);
+      if (sag >= 1) fail('ガラスが垂れ落ちた！');
+      else if (b > 1.1) fail('ふくらませすぎて割れた！');
+      pointTo(!soft ? mouthWorld : null);
+    } else if (step === 3) {
+      $('instr').textContent = holding ? '口を広げています…' : 'ボタンを長押しして口を広げよう';
+      if (holding) { morph = Math.min(1, morph + 0.45 * dt); cup.rotation.y += dt * 3; }
+      temp = 850 - 250 * morph;
+      $('temp').textContent = `${Math.round(temp)}℃`; $('temp').style.color = '#fff';
+      buildCup(morph); paintCup(temp);
+      if (morph >= 1) { toast('コップの形になった！', 1.2); setStep(4); }
+      pointTo(cup.position);
+    } else if (step === 4) {
+      $('instr').textContent = cooling ? (cooling.quench ? 'ジュワーッ！' : 'ゆっくり冷ましています…（実際は数時間）') : 'どうやって冷ます？';
+      if (cooling) {
+        cooling.t += dt;
+        temp = cooling.quench ? Math.max(25, 600 - cooling.t * 1500) : Math.max(25, 600 - cooling.t * 100);
+        if (cooling.quench && cooling.t > 0.5 && !cracks.children.length) { addCracks(); finish(true); }
+        else if (!cooling.quench && temp <= 25) finish(false);
+      }
+      $('temp').textContent = `${Math.round(temp)}℃`;
+      paintCup(temp);
+      pointTo(cup.position);
+    } else if (step === 5) {
+      pointTo(cup.position);
+    }
+
+    if (actx && roar) setRoar(step ? roarVol : 0, roarF);
+    if (toastT > 0) { toastT -= dt; if (toastT <= 0) hide('toast'); }
+    renderer.render(scene, camera);
+  }
+  loop();
+})();
+</script>
+</body>
+</html>
